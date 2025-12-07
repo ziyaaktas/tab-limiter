@@ -1,0 +1,23 @@
+{
+  "name": "tab-limiter",
+  "version": "0.4.0",
+  "description": "Chrome extension to limit the number of open tabs",
+  "private": true,
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "tests/**/*.test.js"
+    ]
+  }
+}
