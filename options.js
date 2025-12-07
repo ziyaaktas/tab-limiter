@@ -60,7 +60,7 @@ const updateBadge = async (options) => {
 // ============================================
 // OPTIONS MANAGEMENT
 // ============================================
-let $inputs;
+let inputElements;
 
 const getOptions = async () => {
 	try {
@@ -77,8 +77,8 @@ const saveOptions = async () => {
 	try {
 		const values = {};
 
-		for (let i = 0; i < $inputs.length; i++) {
-			const input = $inputs[i];
+		for (let i = 0; i < inputElements.length; i++) {
+			const input = inputElements[i];
 			const value = input.type === "checkbox" ? input.checked : input.value;
 			values[input.id] = value;
 		}
@@ -102,8 +102,8 @@ const restoreOptions = async () => {
 	try {
 		const options = await getOptions();
 
-		for (let i = 0; i < $inputs.length; i++) {
-			const input = $inputs[i];
+		for (let i = 0; i < inputElements.length; i++) {
+			const input = inputElements[i];
 			const valueType = input.type === "checkbox" ? "checked" : "value";
 			input[valueType] = options[input.id];
 		}
@@ -116,7 +116,7 @@ const restoreOptions = async () => {
 // EVENT LISTENERS
 // ============================================
 document.addEventListener('DOMContentLoaded', async () => {
-	$inputs = document.querySelectorAll('#options input');
+	inputElements = document.querySelectorAll('#options input');
 
 	await restoreOptions();
 

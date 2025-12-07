@@ -5,6 +5,9 @@
 // ============================================
 // CONSTANTS
 // ============================================
+const MIN_ALLOWED_TABS = 1;
+const INITIAL_TAB_COUNT = -1;
+
 const DEFAULT_OPTIONS = {
 	maxTotal: 50,
 	maxWindow: 20,
@@ -29,9 +32,9 @@ chrome.runtime.onStartup.addListener(handleStartup);
 // STATE MANAGEMENT
 // ============================================
 const SESSION_STATE_DEFAULTS = {
-	tabCount: -1,
-	previousTabCount: -1,
-	amountOfTabsCreated: -1,
+	tabCount: INITIAL_TAB_COUNT,
+	previousTabCount: INITIAL_TAB_COUNT,
+	amountOfTabsCreated: INITIAL_TAB_COUNT,
 	passes: 0
 };
 
@@ -155,7 +158,7 @@ async function updateTabCount() {
 
 		const previousTabCount = state.tabCount;
 		const tabCount = tabs.length;
-		const amountOfTabsCreated = previousTabCount !== -1 ? tabCount - previousTabCount : 0;
+		const amountOfTabsCreated = previousTabCount !== INITIAL_TAB_COUNT ? tabCount - previousTabCount : 0;
 
 		await SessionState.set({
 			previousTabCount,
@@ -175,14 +178,14 @@ async function updateTabCount() {
 // ============================================
 async function detectTooManyTabsInWindow(options) {
 	const tabs = await tabQuery(options, { currentWindow: true });
-	if (options.maxWindow < 1) return null;
+	if (options.maxWindow < MIN_ALLOWED_TABS) return null;
 	if (tabs.length > options.maxWindow) return "window";
 	return null;
 }
 
 async function detectTooManyTabsInTotal(options) {
 	const tabs = await tabQuery(options);
-	if (options.maxTotal < 1) return null;
+	if (options.maxTotal < MIN_ALLOWED_TABS) return null;
 	if (tabs.length > options.maxTotal) return "total";
 	return null;
 }
@@ -312,7 +315,7 @@ async function handleTabCreated(tab) {
 			await handleUpdate();
 		} else if (amountOfTabsCreated > 1) {
 			await SessionState.incrementPasses(amountOfTabsCreated - 1);
-		} else if (amountOfTabsCreated === -1) {
+		} else if (amountOfTabsCreated === INITIAL_TAB_COUNT) {
 			await handleExceedTabs(tab, options, place);
 			await handleUpdate();
 		}

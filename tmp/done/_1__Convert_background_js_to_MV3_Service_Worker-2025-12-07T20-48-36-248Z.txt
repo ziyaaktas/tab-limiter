@@ -1,0 +1,19 @@
+GitHub Issue #1 has been fully implemented. All acceptance criteria from the issue are now complete:
+
+**Changes made:**
+
+1. **State Management** - Global variables (`tabCount`, `previousTabCount`, `amountOfTabsCreated`, `passes`) moved to `chrome.storage.session` with `getSessionState()` and `updateSessionState()` functions
+
+2. **Top-Level Event Listeners** - All event listeners now registered synchronously at the top level (lines 21-25) as required by MV3 service workers
+
+3. **Notifications API** - Replaced `alert()` with `chrome.notifications.create()` (lines 154-159)
+
+4. **Action API** - Replaced `browser.browserAction` with `chrome.action` (lines 75, 80-82)
+
+5. **Runtime.onInstalled** - Added handler for first-time setup to initialize default options (lines 176-179)
+
+6. **Manifest** - Added `notifications` permission
+
+**Commit:** `fb779ab feat: convert background.js to MV3 service worker`
+
+The GitHub API connection was refused when attempting to close the issue remotely. You can close issue #1 manually or push the changes with `git push` to trigger any automated workflows.

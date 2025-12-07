@@ -1,0 +1,63 @@
+<github_issue>
+**Title:** Test & Validate: Complete MV3 Migration Testing
+
+**URL:** https://github.com/ziyaaktas/tab-limiter/issues/5
+
+**Labels:** enhancement
+
+**Project:** tab-limiter (moved to "Todo" status)
+
+---
+
+## Summary
+
+Comprehensive testing and validation of the Chrome Extension Manifest V3 migration to ensure all functionality works correctly before Chrome Web Store submission.
+
+**Key Testing Areas:**
+- Service worker lifecycle behavior (idle/wake cycles, state persistence)
+- Tab limiting functionality (total limits, window limits, pinned tab handling)
+- Options page and storage persistence
+- Edge cases (batch tab creation, multiple windows, session restore)
+- Performance benchmarks
+
+## Motivation
+
+The MV3 migration introduces significant architectural changes, particularly the shift from persistent background pages to event-driven service workers. These changes can introduce subtle bugs around:
+- State loss when service worker terminates
+- Race conditions during rapid tab creation
+- Session restore handling after browser restart
+
+## Test Cases
+
+Includes comprehensive test cases for:
+- **A. Basic Functionality** - Extension loading, options save/load
+- **B. Tab Limiting** - Total limits, window limits, pinned tab handling
+- **C. Service Worker Lifecycle** - Idle recovery, browser restart, session restore
+- **D. Edge Cases** - Batch creation, multiple windows, incognito, performance
+- **E. UI Tests** - Badge display, alert messages, options page
+- **F. Error Handling** - Storage errors, input validation
+- **G. Console Verification** - No errors or deprecated API warnings
+
+## Technical References
+
+- [Chrome Extension MV3 Migration Checklist](https://developer.chrome.com/docs/extensions/develop/migrate/checklist)
+- [Service Worker Lifecycle](https://developer.chrome.com/docs/extensions/mv3/service_workers/service-worker-lifecycle/)
+- [End-to-End Testing for Chrome Extensions](https://developer.chrome.com/docs/extensions/mv3/end-to-end-testing)
+- [eyeo's Journey to Testing MV3 Service Worker Suspension](https://developer.chrome.com/blog/eyeos-journey-to-testing-mv3-service%20worker-suspension)
+
+## Acceptance Criteria
+
+- All test cases in sections A-G pass
+- Performance benchmarks met
+- No regression from MV2 behavior
+- Extension ready for Chrome Web Store submission
+</github_issue>
+
+---
+
+GitHub issue created successfully:
+- **Issue #5:** https://github.com/ziyaaktas/tab-limiter/issues/5
+- Added to the **tab-limiter** project
+- Moved to **Todo** status
+
+The issue contains a comprehensive test plan covering all aspects of the MV3 migration validation, including service worker lifecycle testing based on best practices from Chrome's official documentation.

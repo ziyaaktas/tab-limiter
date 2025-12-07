@@ -1,0 +1,73 @@
+<github_issue>
+**Title:** Migrate manifest.json to Manifest V3
+
+**URL:** https://github.com/ziyaaktas/tab-limiter/issues/6
+
+**Body:**
+
+## Summary
+
+Migrate the extension's `manifest.json` from Manifest V2 to Manifest V3 to comply with Chrome's current requirements. This is the foundational step of the MV3 migration and must be completed before other migration tasks (service worker conversion, API updates, etc.) can proceed.
+
+## Background
+
+Chrome began deprecating Manifest V2 extensions in June 2024 (Chrome 127+) and MV2 extensions are being progressively disabled. Manifest V3 is required for continued Chrome Web Store support and provides improved security, performance, and privacy guarantees.
+
+**Current state:** The extension uses Manifest V2 with:
+- `"manifest_version": 2`
+- `browser_action` for toolbar popup
+- Background scripts (`"background": { "scripts": ["background.js"] }`)
+- `storage` permission only
+
+## Proposed Changes
+
+### 1. Update manifest version
+```diff
+- "manifest_version": 2
++ "manifest_version": 3
+```
+
+### 2. Replace `browser_action` with `action`
+In MV3, `browser_action` and `page_action` are unified into a single `action` field.
+
+### 3. Convert background scripts to service worker
+```diff
+- "background": { "scripts": ["background.js"] }
++ "background": { "service_worker": "background.js" }
+```
+
+### 4. Add explicit `tabs` permission
+```diff
+- "permissions": ["storage"]
++ "permissions": ["storage", "tabs"]
+```
+
+### 5. Bump version number
+```diff
+- "version": "0.3.0"
++ "version": "0.4.0"
+```
+
+## Acceptance Criteria
+
+- [ ] `manifest_version` is set to `3`
+- [ ] `browser_action` renamed to `action`
+- [ ] Background script format changed to `service_worker`
+- [ ] `tabs` permission added to permissions array
+- [ ] Version number bumped to `0.4.0`
+- [ ] Extension loads without manifest errors in `chrome://extensions` (developer mode)
+- [ ] Manifest JSON is valid (no syntax errors)
+
+## References
+
+- [Chrome Manifest V3 Migration Guide](https://developer.chrome.com/docs/extensions/develop/migrate)
+- [Manifest V3 Migration Checklist](https://developer.chrome.com/docs/extensions/develop/migrate/checklist)
+- [What is Manifest V3](https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3)
+</github_issue>
+
+---
+
+GitHub issue created successfully:
+- **Issue #6:** [Migrate manifest.json to Manifest V3](https://github.com/ziyaaktas/tab-limiter/issues/6)
+- Added to project **tab-limiter** (project #3)
+- Moved to **Todo** status lane
