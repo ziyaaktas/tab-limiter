@@ -23,36 +23,58 @@ chrome.tabs.onRemoved.addListener(handleUpdate);
 chrome.tabs.onUpdated.addListener(handleUpdate);
 chrome.windows.onFocusChanged.addListener(handleUpdate);
 chrome.runtime.onInstalled.addListener(handleInstalled);
+chrome.runtime.onStartup.addListener(handleStartup);
 
 // ============================================
 // STATE MANAGEMENT
 // ============================================
-async function getSessionState() {
-	try {
-		return await chrome.storage.session.get({
-			tabCount: -1,
-			previousTabCount: -1,
-			amountOfTabsCreated: -1,
-			passes: 0
-		});
-	} catch (error) {
-		console.error("Failed to get session state:", error);
-		return {
-			tabCount: -1,
-			previousTabCount: -1,
-			amountOfTabsCreated: -1,
-			passes: 0
-		};
-	}
-}
+const SESSION_STATE_DEFAULTS = {
+	tabCount: -1,
+	previousTabCount: -1,
+	amountOfTabsCreated: -1,
+	passes: 0
+};
 
-async function updateSessionState(updates) {
-	try {
-		await chrome.storage.session.set(updates);
-	} catch (error) {
-		console.error("Failed to update session state:", error);
+const SessionState = {
+	async get() {
+		try {
+			return await chrome.storage.session.get(SESSION_STATE_DEFAULTS);
+		} catch (error) {
+			console.error("Failed to get session state:", error);
+			return { ...SESSION_STATE_DEFAULTS };
+		}
+	},
+
+	async set(updates) {
+		try {
+			await chrome.storage.session.set(updates);
+		} catch (error) {
+			console.error("Failed to update session state:", error);
+		}
+	},
+
+	async initialize() {
+		await this.set(SESSION_STATE_DEFAULTS);
+	},
+
+	async incrementPasses(amount = 1) {
+		const { passes } = await this.get();
+		const newPasses = passes + amount;
+		await this.set({ passes: newPasses });
+		return newPasses;
+	},
+
+	async decrementPasses() {
+		const { passes } = await this.get();
+		const newPasses = Math.max(0, passes - 1);
+		await this.set({ passes: newPasses });
+		return newPasses;
+	},
+
+	async resetPasses() {
+		await this.set({ passes: 0 });
 	}
-}
+};
 
 // ============================================
 // OPTIONS MANAGEMENT
@@ -110,13 +132,22 @@ async function updateBadge(options) {
 	}
 }
 
+async function refreshBadge() {
+	try {
+		const options = await getOptions();
+		await updateBadge(options);
+	} catch (error) {
+		console.error("Failed to refresh badge:", error);
+	}
+}
+
 // ============================================
 // TAB COUNT TRACKING
 // ============================================
 async function updateTabCount() {
 	try {
 		const tabs = await chrome.tabs.query({});
-		const state = await getSessionState();
+		const state = await SessionState.get();
 
 		if (tabs.length === state.tabCount) {
 			return state.amountOfTabsCreated;
@@ -126,7 +157,7 @@ async function updateTabCount() {
 		const tabCount = tabs.length;
 		const amountOfTabsCreated = previousTabCount !== -1 ? tabCount - previousTabCount : 0;
 
-		await updateSessionState({
+		await SessionState.set({
 			previousTabCount,
 			tabCount,
 			amountOfTabsCreated
@@ -224,10 +255,25 @@ async function handleExceedTabs(tab, options, place) {
 // ============================================
 async function handleInstalled(details) {
 	try {
-		await chrome.storage.sync.set({ defaultOptions: DEFAULT_OPTIONS });
-		await handleUpdate();
+		if (details.reason === "install") {
+			await chrome.storage.sync.set({ defaultOptions: DEFAULT_OPTIONS });
+			console.log("Tab Limiter installed with default options");
+		} else if (details.reason === "update") {
+			console.log("Tab Limiter updated to version", chrome.runtime.getManifest().version);
+		}
+		await SessionState.initialize();
+		await refreshBadge();
 	} catch (error) {
 		console.error("Failed to handle install:", error);
+	}
+}
+
+async function handleStartup() {
+	try {
+		await SessionState.initialize();
+		await refreshBadge();
+	} catch (error) {
+		console.error("Failed to handle startup:", error);
 	}
 }
 
@@ -252,10 +298,10 @@ async function handleTabCreated(tab) {
 		}
 
 		const amountOfTabsCreated = await updateTabCount();
-		const state = await getSessionState();
+		const state = await SessionState.get();
 
 		if (state.passes > 0) {
-			await updateSessionState({ passes: state.passes - 1 });
+			await SessionState.decrementPasses();
 			return;
 		}
 
@@ -265,7 +311,7 @@ async function handleTabCreated(tab) {
 			await handleExceedTabs(tab, options, place);
 			await handleUpdate();
 		} else if (amountOfTabsCreated > 1) {
-			await updateSessionState({ passes: amountOfTabsCreated - 1 });
+			await SessionState.incrementPasses(amountOfTabsCreated - 1);
 		} else if (amountOfTabsCreated === -1) {
 			await handleExceedTabs(tab, options, place);
 			await handleUpdate();
@@ -276,11 +322,11 @@ async function handleTabCreated(tab) {
 }
 
 // ============================================
-// INITIALIZATION
+// INITIALIZATION (runs on every service worker wake)
 // ============================================
 (async () => {
 	try {
-		await handleUpdate();
+		await refreshBadge();
 	} catch (error) {
 		console.error("Failed to initialize:", error);
 	}
