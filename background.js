@@ -28,100 +28,141 @@ chrome.runtime.onInstalled.addListener(handleInstalled);
 // STATE MANAGEMENT
 // ============================================
 async function getSessionState() {
-	return chrome.storage.session.get({
-		tabCount: -1,
-		previousTabCount: -1,
-		amountOfTabsCreated: -1,
-		passes: 0
-	});
+	try {
+		return await chrome.storage.session.get({
+			tabCount: -1,
+			previousTabCount: -1,
+			amountOfTabsCreated: -1,
+			passes: 0
+		});
+	} catch (error) {
+		console.error("Failed to get session state:", error);
+		return {
+			tabCount: -1,
+			previousTabCount: -1,
+			amountOfTabsCreated: -1,
+			passes: 0
+		};
+	}
 }
 
 async function updateSessionState(updates) {
-	return chrome.storage.session.set(updates);
+	try {
+		await chrome.storage.session.set(updates);
+	} catch (error) {
+		console.error("Failed to update session state:", error);
+	}
 }
 
 // ============================================
 // OPTIONS MANAGEMENT
 // ============================================
-const getOptions = () => new Promise((res) => {
-	chrome.storage.sync.get("defaultOptions", (defaults) => {
-		chrome.storage.sync.get(defaults.defaultOptions || DEFAULT_OPTIONS, (options) => {
-			res(options);
-		});
-	});
-});
+async function getOptions() {
+	try {
+		const defaults = await chrome.storage.sync.get("defaultOptions");
+		const options = await chrome.storage.sync.get(defaults.defaultOptions || DEFAULT_OPTIONS);
+		return options;
+	} catch (error) {
+		console.error("Failed to get options:", error);
+		return DEFAULT_OPTIONS;
+	}
+}
 
 // ============================================
 // TAB QUERY UTILITIES
 // ============================================
-const tabQuery = (options, params = {}) => new Promise(res => {
-	if (!options.countPinnedTabs) params.pinned = false;
-	chrome.tabs.query(params, tabs => res(tabs));
-});
+async function tabQuery(options, params = {}) {
+	if (!options.countPinnedTabs) {
+		params.pinned = false;
+	}
+	return chrome.tabs.query(params);
+}
 
-const windowRemaining = options =>
-	tabQuery(options, { currentWindow: true })
-		.then(tabs => options.maxWindow - tabs.length);
+async function windowRemaining(options) {
+	const tabs = await tabQuery(options, { currentWindow: true });
+	return options.maxWindow - tabs.length;
+}
 
-const totalRemaining = options =>
-	tabQuery(options)
-		.then(tabs => options.maxTotal - tabs.length);
+async function totalRemaining(options) {
+	const tabs = await tabQuery(options);
+	return options.maxTotal - tabs.length;
+}
 
 // ============================================
 // BADGE MANAGEMENT
 // ============================================
-const updateBadge = async (options) => {
-	if (!options.displayBadge) {
-		await chrome.action.setBadgeText({ text: "" });
-		return;
-	}
+async function updateBadge(options) {
+	try {
+		if (!options.displayBadge) {
+			await chrome.action.setBadgeText({ text: "" });
+			return;
+		}
 
-	const remaining = await Promise.all([windowRemaining(options), totalRemaining(options)]);
-	await chrome.action.setBadgeText({
-		text: Math.min(...remaining).toString()
-	});
-};
+		const remaining = await Promise.all([
+			windowRemaining(options),
+			totalRemaining(options)
+		]);
+		await chrome.action.setBadgeText({
+			text: Math.min(...remaining).toString()
+		});
+	} catch (error) {
+		console.error("Failed to update badge:", error);
+	}
+}
 
 // ============================================
 // TAB COUNT TRACKING
 // ============================================
 async function updateTabCount() {
-	const tabs = await chrome.tabs.query({});
-	const state = await getSessionState();
+	try {
+		const tabs = await chrome.tabs.query({});
+		const state = await getSessionState();
 
-	if (tabs.length === state.tabCount) {
-		return state.amountOfTabsCreated;
+		if (tabs.length === state.tabCount) {
+			return state.amountOfTabsCreated;
+		}
+
+		const previousTabCount = state.tabCount;
+		const tabCount = tabs.length;
+		const amountOfTabsCreated = previousTabCount !== -1 ? tabCount - previousTabCount : 0;
+
+		await updateSessionState({
+			previousTabCount,
+			tabCount,
+			amountOfTabsCreated
+		});
+
+		return amountOfTabsCreated;
+	} catch (error) {
+		console.error("Failed to update tab count:", error);
+		return 0;
 	}
-
-	const previousTabCount = state.tabCount;
-	const tabCount = tabs.length;
-	const amountOfTabsCreated = previousTabCount !== -1 ? tabCount - previousTabCount : 0;
-
-	await updateSessionState({
-		previousTabCount,
-		tabCount,
-		amountOfTabsCreated
-	});
-
-	return amountOfTabsCreated;
 }
 
 // ============================================
 // TAB LIMIT DETECTION
 // ============================================
-const detectTooManyTabsInWindow = options => new Promise(res => {
-	tabQuery(options, { currentWindow: true }).then(tabs => {
-		if (options.maxWindow < 1) return;
-		if (tabs.length > options.maxWindow) res("window");
-	});
-});
+async function detectTooManyTabsInWindow(options) {
+	const tabs = await tabQuery(options, { currentWindow: true });
+	if (options.maxWindow < 1) return null;
+	if (tabs.length > options.maxWindow) return "window";
+	return null;
+}
 
-const detectTooManyTabsInTotal = options => new Promise(res => {
-	tabQuery(options).then(tabs => {
-		if (options.maxTotal < 1) return;
-		if (tabs.length > options.maxTotal) res("total");
-	});
-});
+async function detectTooManyTabsInTotal(options) {
+	const tabs = await tabQuery(options);
+	if (options.maxTotal < 1) return null;
+	if (tabs.length > options.maxTotal) return "total";
+	return null;
+}
+
+async function detectTabLimitExceeded(options) {
+	const [windowResult, totalResult] = await Promise.all([
+		detectTooManyTabsInWindow(options),
+		detectTooManyTabsInTotal(options)
+	]);
+	return windowResult || totalResult;
+}
 
 // ============================================
 // NOTIFICATION (replaces alert())
@@ -151,70 +192,86 @@ async function displayAlert(options, place) {
 		replacer
 	);
 
-	await chrome.notifications.create({
-		type: 'basic',
-		iconUrl: 'icons/48.png',
-		title: 'Tab Limiter',
-		message: renderedMessage
-	});
+	try {
+		await chrome.notifications.create({
+			type: 'basic',
+			iconUrl: 'icons/48.png',
+			title: 'Tab Limiter',
+			message: renderedMessage
+		});
+	} catch (error) {
+		console.error("Failed to display notification:", error);
+	}
 }
 
 // ============================================
 // TAB EXCEED HANDLING
 // ============================================
-const handleExceedTabs = (tab, options, place) => {
-	if (options.exceedTabNewWindow && place === "window") {
-		chrome.windows.create({ tabId: tab.id, focused: true });
-	} else {
-		chrome.tabs.remove(tab.id);
+async function handleExceedTabs(tab, options, place) {
+	try {
+		if (options.exceedTabNewWindow && place === "window") {
+			await chrome.windows.create({ tabId: tab.id, focused: true });
+		} else {
+			await chrome.tabs.remove(tab.id);
+		}
+	} catch (error) {
+		console.error("Failed to handle exceed tabs:", error);
 	}
-};
+}
 
 // ============================================
 // EVENT HANDLERS
 // ============================================
 async function handleInstalled(details) {
-	await chrome.storage.sync.set({ defaultOptions: DEFAULT_OPTIONS });
-	await handleUpdate();
+	try {
+		await chrome.storage.sync.set({ defaultOptions: DEFAULT_OPTIONS });
+		await handleUpdate();
+	} catch (error) {
+		console.error("Failed to handle install:", error);
+	}
 }
 
 async function handleUpdate() {
-	await updateTabCount();
-	const options = await getOptions();
-	await updateBadge(options);
+	try {
+		await updateTabCount();
+		const options = await getOptions();
+		await updateBadge(options);
+	} catch (error) {
+		console.error("Failed to handle update:", error);
+	}
 }
 
 async function handleTabCreated(tab) {
-	const options = await getOptions();
+	try {
+		const options = await getOptions();
+		const place = await detectTabLimitExceeded(options);
 
-	const place = await Promise.race([
-		detectTooManyTabsInWindow(options),
-		detectTooManyTabsInTotal(options)
-	]).catch(() => null);
+		if (!place) {
+			await handleUpdate();
+			return;
+		}
 
-	if (!place) {
-		await handleUpdate();
-		return;
-	}
+		const amountOfTabsCreated = await updateTabCount();
+		const state = await getSessionState();
 
-	const amountOfTabsCreated = await updateTabCount();
-	const state = await getSessionState();
+		if (state.passes > 0) {
+			await updateSessionState({ passes: state.passes - 1 });
+			return;
+		}
 
-	if (state.passes > 0) {
-		await updateSessionState({ passes: state.passes - 1 });
-		return;
-	}
+		await displayAlert(options, place);
 
-	await displayAlert(options, place);
-
-	if (amountOfTabsCreated === 1) {
-		handleExceedTabs(tab, options, place);
-		await handleUpdate();
-	} else if (amountOfTabsCreated > 1) {
-		await updateSessionState({ passes: amountOfTabsCreated - 1 });
-	} else if (amountOfTabsCreated === -1) {
-		handleExceedTabs(tab, options, place);
-		await handleUpdate();
+		if (amountOfTabsCreated === 1) {
+			await handleExceedTabs(tab, options, place);
+			await handleUpdate();
+		} else if (amountOfTabsCreated > 1) {
+			await updateSessionState({ passes: amountOfTabsCreated - 1 });
+		} else if (amountOfTabsCreated === -1) {
+			await handleExceedTabs(tab, options, place);
+			await handleUpdate();
+		}
+	} catch (error) {
+		console.error("Failed to handle tab created:", error);
 	}
 }
 
@@ -222,5 +279,9 @@ async function handleTabCreated(tab) {
 // INITIALIZATION
 // ============================================
 (async () => {
-	await handleUpdate();
+	try {
+		await handleUpdate();
+	} catch (error) {
+		console.error("Failed to initialize:", error);
+	}
 })();

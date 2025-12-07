@@ -1,62 +1,90 @@
-const browser = chrome || browser
+// ============================================
+// OPTIONS PAGE FOR TAB LIMITER (MV3)
+// ============================================
 
-const tabQuery = (options, params = {}) => new Promise(res => {
-	if (!options.countPinnedTabs) params.pinned = false // only non-pinned tabs
-	browser.tabs.query(params, tabs => res(tabs))
-})
+// ============================================
+// CONSTANTS
+// ============================================
+const DEFAULT_OPTIONS = {
+	maxTotal: 50,
+	maxWindow: 20,
+	exceedTabNewWindow: false,
+	displayAlert: true,
+	countPinnedTabs: false,
+	displayBadge: false,
+	alertMessage: "You decided not to open more than {maxPlace} tabs in {place}"
+};
 
-const windowRemaining = options =>
-	tabQuery(options, { currentWindow: true })
-		.then(tabs => options.maxWindow - tabs.length)
-
-const totalRemaining = options =>
-	tabQuery(options)
-		.then(tabs => options.maxTotal - tabs.length)
-
-const updateBadge = options => {
-	if (!options.displayBadge) {
-		browser.browserAction.setBadgeText({ text: "" })
-		return;
+// ============================================
+// TAB QUERY UTILITIES
+// ============================================
+const tabQuery = async (options, params = {}) => {
+	if (!options.countPinnedTabs) {
+		params.pinned = false;
 	}
+	return chrome.tabs.query(params);
+};
 
-	Promise.all([windowRemaining(options), totalRemaining(options)])
-	.then(remaining => {
-		// console.log(remaining)
-		// remaining = [remainingInWindow, remainingInTotal]
-		browser.browserAction.setBadgeText({
+const windowRemaining = async (options) => {
+	const tabs = await tabQuery(options, { currentWindow: true });
+	return options.maxWindow - tabs.length;
+};
+
+const totalRemaining = async (options) => {
+	const tabs = await tabQuery(options);
+	return options.maxTotal - tabs.length;
+};
+
+// ============================================
+// BADGE MANAGEMENT
+// ============================================
+const updateBadge = async (options) => {
+	try {
+		if (!options.displayBadge) {
+			await chrome.action.setBadgeText({ text: "" });
+			return;
+		}
+
+		const remaining = await Promise.all([
+			windowRemaining(options),
+			totalRemaining(options)
+		]);
+		await chrome.action.setBadgeText({
 			text: Math.min(...remaining).toString()
-		})
-	})
-}
+		});
+	} catch (error) {
+		console.error("Failed to update badge:", error);
+	}
+};
 
-// ----------------------------------------------------------------------------
-
+// ============================================
+// OPTIONS MANAGEMENT
+// ============================================
 let $inputs;
 
-
-
-// Saves options to browser.storage
-const saveOptions = () => {
-
-	const values = {};
-
-	for (let i = 0; i < $inputs.length; i++) {
-		const input = $inputs[i];
-
-		const value =
-			input.type === "checkbox" ?
-			input.checked :
-
-			input.value;
-
-		values[input.id] = value;
+const getOptions = async () => {
+	try {
+		const defaults = await chrome.storage.sync.get("defaultOptions");
+		const options = await chrome.storage.sync.get(defaults.defaultOptions || DEFAULT_OPTIONS);
+		return options;
+	} catch (error) {
+		console.error("Failed to get options:", error);
+		return DEFAULT_OPTIONS;
 	}
+};
 
-	const options = values;
+const saveOptions = async () => {
+	try {
+		const values = {};
 
-	browser.storage.sync.set(options, () => {
+		for (let i = 0; i < $inputs.length; i++) {
+			const input = $inputs[i];
+			const value = input.type === "checkbox" ? input.checked : input.value;
+			values[input.id] = value;
+		}
 
-		// Update status to let user know options were saved.
+		await chrome.storage.sync.set(values);
+
 		const status = document.getElementById('status');
 		status.className = 'notice';
 		status.textContent = 'Options saved.';
@@ -64,40 +92,40 @@ const saveOptions = () => {
 			status.className += ' invisible';
 		}, 100);
 
+		await updateBadge(values);
+	} catch (error) {
+		console.error("Failed to save options:", error);
+	}
+};
 
-		updateBadge(options)
-	});
-}
+const restoreOptions = async () => {
+	try {
+		const options = await getOptions();
 
-// Restores select box and checkbox state using the preferences
-// stored in browser.storage.
-const restoreOptions = () => {
-	browser.storage.sync.get("defaultOptions", (defaults) => {
-		browser.storage.sync.get(defaults.defaultOptions, (options) => {
+		for (let i = 0; i < $inputs.length; i++) {
+			const input = $inputs[i];
+			const valueType = input.type === "checkbox" ? "checked" : "value";
+			input[valueType] = options[input.id];
+		}
+	} catch (error) {
+		console.error("Failed to restore options:", error);
+	}
+};
 
-			for (let i = 0; i < $inputs.length; i++) {
-				const input = $inputs[i];
-
-				const valueType =
-					input.type === "checkbox" ?
-					"checked" :
-					"value";
-
-				input[valueType] = options[input.id];
-			};
-		});
-	});
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-	restoreOptions();
-
+// ============================================
+// EVENT LISTENERS
+// ============================================
+document.addEventListener('DOMContentLoaded', async () => {
 	$inputs = document.querySelectorAll('#options input');
 
-	const onChangeInputs =
-		document.querySelectorAll('#options [type="checkbox"], #options [type="number"]');
-	const onKeyupInputs =
-		document.querySelectorAll('#options [type="text"], #options [type="number"]');
+	await restoreOptions();
+
+	const onChangeInputs = document.querySelectorAll(
+		'#options [type="checkbox"], #options [type="number"]'
+	);
+	const onKeyupInputs = document.querySelectorAll(
+		'#options [type="text"], #options [type="number"]'
+	);
 
 	for (let i = 0; i < onChangeInputs.length; i++) {
 		onChangeInputs[i].addEventListener('change', saveOptions);
@@ -105,18 +133,4 @@ document.addEventListener('DOMContentLoaded', () => {
 	for (let i = 0; i < onKeyupInputs.length; i++) {
 		onKeyupInputs[i].addEventListener('keyup', saveOptions);
 	}
-
-
-	// show special message
-
-	if (!localStorage.getItem('readMessage') && (new Date() < new Date('09-20-2020'))) {
-		document.querySelector('.message').classList.remove('hidden')
-		setTimeout(() => {
-			localStorage.setItem('readMessage', true)
-		}, 2000);
-	}
 });
-
-
-
-
