@@ -227,9 +227,10 @@ async function displayAlert(options, place) {
 	);
 
 	try {
-		await chrome.notifications.create({
+		const notificationId = `tab-limiter-${Date.now()}`;
+		await chrome.notifications.create(notificationId, {
 			type: 'basic',
-			iconUrl: 'icons/48.png',
+			iconUrl: chrome.runtime.getURL('icons/48.png'),
 			title: 'Tab Limiter',
 			message: renderedMessage
 		});
@@ -296,6 +297,7 @@ async function handleTabCreated(tab) {
 		const place = await detectTabLimitExceeded(options);
 
 		if (!place) {
+			await SessionState.resetPasses();
 			await handleUpdate();
 			return;
 		}
@@ -310,14 +312,11 @@ async function handleTabCreated(tab) {
 
 		await displayAlert(options, place);
 
-		if (amountOfTabsCreated === 1) {
+		if (amountOfTabsCreated <= 1) {
 			await handleExceedTabs(tab, options, place);
 			await handleUpdate();
-		} else if (amountOfTabsCreated > 1) {
+		} else {
 			await SessionState.incrementPasses(amountOfTabsCreated - 1);
-		} else if (amountOfTabsCreated === INITIAL_TAB_COUNT) {
-			await handleExceedTabs(tab, options, place);
-			await handleUpdate();
 		}
 	} catch (error) {
 		console.error("Failed to handle tab created:", error);
