@@ -1,9 +1,9 @@
 {
-	"name": "Tab Limiter",
-	"description": "Limit the number of open tabs – in total and per window",
-	"version": "0.4.0",
+	"name": "Tab Limiter Deluxe",
+	"description": "Limit the number of open tabs – in total and per window with deluxe features",
+	"version": "1.0.0",
 	"author": "Ziya Aktas",
-	"homepage_url": "https://github.com/matthias-vogt/tab-limiter",
+	"homepage_url": "https://github.com/ziyaaktas/tab-limiter",
 	"manifest_version": 3,
 	"icons": {
 		"48": "icons/48.png",
@@ -21,5 +21,9 @@
 	"background": {
 		"service_worker": "background.js"
 	},
-	"permissions": ["storage", "tabs", "notifications"]
+	"permissions": [
+		"storage",
+		"tabs",
+		"notifications"
+	]
 }
