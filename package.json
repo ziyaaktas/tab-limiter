@@ -1,6 +1,6 @@
 {
   "name": "tab-limiter",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "description": "Chrome extension to limit the number of open tabs",
   "private": true,
   "scripts": {
